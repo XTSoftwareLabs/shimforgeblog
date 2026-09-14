@@ -208,11 +208,6 @@ Add shimforge as a development dependency:
 shimforge = "0.1"
 ```
 
-## Learn more
-
-- [shimforge home page](https://shimforge.com)
-- [shimforge on GitHub](https://github.com/XTSoftwareLabs/shimforge)
-
 The test profile also needs low optimization so calls keep a patchable entry point:
 
 ```toml
@@ -223,4 +218,9 @@ lto = false
 codegen-units = 1
 incremental = false
 ```
+
+## Learn more
+
+- [shimforge home page](https://shimforge.com)
+- [shimforge on GitHub](https://github.com/XTSoftwareLabs/shimforge)
 
