@@ -1,0 +1,12 @@
+title: Shimforge Blog
+description: Practical notes on testing Rust code with shimforge.
+url: https://xtsoftwarelabs.github.io
+baseurl: /shimforgeblog
+markdown: kramdown
+permalink: /:year/:month/:day/:title/
+exclude:
+  - README.md
+  - Gemfile
+  - Gemfile.lock
+  - vendor
+

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% if page.title %}{{ page.title }} · {% endif %}{{ site.title }}</title>
+    <meta name="description" content="{{ page.description | default: site.description }}">
+    <link rel="stylesheet" href="{{ "/assets/style.css" | relative_url }}">
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap">
+        <a class="brand" href="{{ "/" | relative_url }}">shimforge<span>.</span>blog</a>
+        <a class="github-link" href="https://github.com/XTSoftwareLabs/shimforge">shimforge on GitHub ↗</a>
+      </div>
+    </header>
+    <main class="wrap content">
+      {% if page.layout == "default" and page.title == nil %}
+        <p class="eyebrow">RUST TESTING, WITHOUT THE PLUMBING</p>
+        <h1>Make hard to test code easy to test.</h1>
+        <p class="intro">Practical notes on testing file systems, clocks, environment variables, and other seams in Rust.</p>
+      {% endif %}
+      {{ content }}
+    </main>
+    <footer class="wrap site-footer">
+      <a href="https://github.com/XTSoftwareLabs/shimforge">shimforge</a> · built for Rust developers
+    </footer>
+  </body>
+</html>
