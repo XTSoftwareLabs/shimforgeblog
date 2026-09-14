@@ -79,9 +79,9 @@ impl CacheFileSystem for RealCacheFileSystem {
 
 That is a reasonable design when choosing a file system is part of the application. For a helper that only needs to call the standard library, it adds a permanent layer for a test concern.
 
-## The [shimforge](https://shimforge.com) version
+## The shimforge version
 
-[Shimforge](https://shimforge.com) lets the production function stay as it was. It replaces the function called by the code under test for the session:
+Shimforge lets the production function stay as it was. It replaces the function called by the code under test for the session:
 
 ```rust
 use shimforge::{mock, Session};
@@ -135,21 +135,21 @@ fn cache_setup_reports_permission_errors() {
 
 The test controls the exact `io::Error` returned to the caller. It does not need a read-only directory, special permissions, or a platform specific setup.
 
-## Where [shimforge](https://shimforge.com) has the edge
+## Where shimforge has the edge
 
-For direct file system calls, [shimforge](https://shimforge.com) has a few practical advantages over the Mockall version.
+For direct file system calls, shimforge has a few practical advantages over the Mockall version.
 
 ### No production refactor
 
-Mockall needs a trait for this example. [Shimforge](https://shimforge.com) works with the function that already exists. That matters when the code is stable, small, or shared by many callers. You can add a test without changing the function signature and then review only the behavior under test.
+Mockall needs a trait for this example. Shimforge works with the function that already exists. That matters when the code is stable, small, or shared by many callers. You can add a test without changing the function signature and then review only the behavior under test.
 
 ### No dependency injection through the call graph
 
-With Mockall, the file system object has to reach `prepare_cache`, either as an argument or through a field on another type. As the call graph grows, that value moves through more constructors and methods. [Shimforge](https://shimforge.com) keeps the test setup at the test boundary.
+With Mockall, the file system object has to reach `prepare_cache`, either as an argument or through a field on another type. As the call graph grows, that value moves through more constructors and methods. Shimforge keeps the test setup at the test boundary.
 
 ### It can mock code you do not own
 
-The trait approach works when you can put your own interface in front of a dependency. [Shimforge](https://shimforge.com) can target a free function from the standard library or another crate directly. That is useful for `std::fs::read`, `std::fs::write`, `File::open`, `Path::exists`, and `Path::is_dir`.
+The trait approach works when you can put your own interface in front of a dependency. Shimforge can target a free function from the standard library or another crate directly. That is useful for `std::fs::read`, `std::fs::write`, `File::open`, `Path::exists`, and `Path::is_dir`.
 
 For example, a reader can be tested without a file:
 
@@ -197,16 +197,21 @@ That keeps the direct approach readable: the test names the function, states its
 
 ## Which one should you use?
 
-Mockall remains a strong fit when an interface is already part of the design or when several implementations are a real product feature. For code that directly calls `std::fs`, [shimforge](https://shimforge.com) has the smaller change: keep the production code intact and replace the narrow call inside the test.
+Mockall remains a strong fit when an interface is already part of the design or when several implementations are a real product feature. For code that directly calls `std::fs`, shimforge has the smaller change: keep the production code intact and replace the narrow call inside the test.
 
-That is the main reason to prefer [shimforge](https://shimforge.com) for file system seams. It lets the test check paths, calls, bytes, and OS errors without adding a test-only abstraction to the application.
+That is the main reason to prefer shimforge for file system seams. It lets the test check paths, calls, bytes, and OS errors without adding a test-only abstraction to the application.
 
-Add [shimforge](https://shimforge.com) as a development dependency:
+Add shimforge as a development dependency:
 
 ```toml
 [dev-dependencies]
 shimforge = "0.1"
 ```
+
+## Learn more
+
+- [shimforge home page](https://shimforge.com)
+- [shimforge on GitHub](https://github.com/XTSoftwareLabs/shimforge)
 
 The test profile also needs low optimization so calls keep a patchable entry point:
 
