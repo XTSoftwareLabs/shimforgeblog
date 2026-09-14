@@ -105,7 +105,6 @@ fn cache_setup_succeeds_without_creating_a_directory() {
         .returning(|_| Ok(()));
 
     assert!(prepare_cache(root).is_ok());
-    session.verify();
     assert!(!root.exists());
 }
 ```
