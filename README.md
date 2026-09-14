@@ -1,6 +1,6 @@
 # Shimforge Blog
 
-Articles about testing Rust code with [shimforge](https://github.com/XTSoftwareLabs/shimforge).
+Articles about testing Rust code with [shimforge](https://shimforge.com).
 
 The published blog is at <https://xtsoftwarelabs.github.io/shimforgeblog/>.
 
