@@ -219,5 +219,3 @@ codegen-units = 1
 incremental = false
 ```
 
-Keep the session alive while the code under test runs. `Session::new()` is thread local. Use `Session::new_global()` when the call happens on a thread the test does not control.
-
