@@ -1,7 +1,7 @@
 title: shimforge blog
 description: Practical notes on testing Rust code with shimforge.
-url: https://xtsoftwarelabs.github.io
-baseurl: /shimforgeblog
+url: https://blog.shimforge.com
+baseurl: ""
 markdown: kramdown
 permalink: /:year/:month/:day/:title/
 exclude:
