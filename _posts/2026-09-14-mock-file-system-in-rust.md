@@ -1,4 +1,5 @@
 ---
+layout: default
 title: How to mock the file system in Rust
 description: Test Rust file system code without touching disk or changing production code.
 date: 2026-09-14
@@ -231,4 +232,3 @@ Install the first mock before other threads call that function. Later local inst
 Shimforge changes function entry points at runtime, so it has rules that a trait mock does not. Keep calls away from a target during the first installation, use a global session for work that crosses threads, and keep the test profile settings above. Its safe macros check function signatures, but runtime patching still cannot protect every invariant inside arbitrary code.
 
 For a small piece of file system code, those rules are usually a fair trade. You get a focused test, deterministic errors, and production code that does not need a test-only abstraction.
-
