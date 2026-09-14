@@ -9,7 +9,7 @@ date: 2026-09-14
 
 File system code is simple to write and easy to make flaky in tests. A test that uses the real disk needs temporary paths, cleanup, and platform specific ways to produce errors. It can also leave tests coupled to the machine running them.
 
-This example uses Mockall first, then [shimforge](https://shimforge.com). Both can test the behavior. The difference is where the test seam lives.
+This example uses Mockall first, then shimforge. Both can test the behavior. The difference is where the test seam lives.
 
 ## The code we want to test
 
