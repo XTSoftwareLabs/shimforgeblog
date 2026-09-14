@@ -1,21 +1,19 @@
 ---
 layout: default
 title: How to mock the file system in Rust
-description: Test Rust file system code without touching disk or changing production code.
+description: A practical comparison of Mockall and shimforge for testing std::fs calls.
 date: 2026-09-14
 ---
 
 # How to mock the file system in Rust
 
-File system code is easy to write and awkward to test.
+File system code is simple to write and easy to make flaky in tests. A test that uses the real disk needs temporary paths, cleanup, and platform specific ways to produce errors. It can also leave tests coupled to the machine running them.
 
-Your code may only need to create a directory, read a file, or handle a permission error. A normal unit test then has to create files, remove them, choose a safe temporary path, and hope another test is not using the same path. Tests can become slow and still miss the errors that happen on a real machine.
+This example uses Mockall first, then shimforge. Both can test the behavior. The difference is where the test seam lives.
 
-This post shows how to test those paths with [shimforge](https://github.com/XTSoftwareLabs/shimforge). The production code keeps calling `std::fs`. The test replaces that call for the life of a session.
+## The code we want to test
 
-## The problem
-
-Imagine a small cache setup function:
+Start with ordinary Rust code:
 
 ```rust
 use std::fs;
@@ -28,36 +26,22 @@ fn prepare_cache(root: &Path) -> Result<(), String> {
 }
 ```
 
-There are two useful paths to test:
+We want to test that the function passes the right path and handles a permission error. The function calls `std::fs::create_dir_all` directly. There is no file system abstraction in the production code.
 
-- the directory is created successfully;
-- the operating system rejects the request.
+## The Mockall version
 
-A test that uses the real disk can cover the first path with a temporary directory. The failure path is harder. You need a read-only location, platform-specific setup, or a test machine that happens to behave the same way.
-
-The test also checks an implementation detail: did the code create the directory that the caller passed in?
-
-## The usual mock-library approach
-
-Many Rust mock libraries work through a trait. You put file operations behind an interface, then pass either a real implementation or a mock implementation to the code under test:
+Mockall is a good choice when the code already has a trait boundary. To use it here, we first add one:
 
 ```rust
+use mockall::automock;
+use std::io;
+use std::path::Path;
+
+#[automock]
 trait CacheFileSystem {
-    fn create_dir_all(&self, path: &Path) -> io::Result<()>;
+    fn create_dir_all(&self, root: &Path) -> io::Result<()>;
 }
 
-struct RealFileSystem;
-
-impl CacheFileSystem for RealFileSystem {
-    fn create_dir_all(&self, path: &Path) -> io::Result<()> {
-        std::fs::create_dir_all(path)
-    }
-}
-```
-
-The application function now needs a file system parameter:
-
-```rust
 fn prepare_cache<F: CacheFileSystem>(fs: &F, root: &Path) -> Result<(), String> {
     fs.create_dir_all(root)
         .map_err(|error| format!("cannot prepare cache: {error}"))?;
@@ -65,13 +49,39 @@ fn prepare_cache<F: CacheFileSystem>(fs: &F, root: &Path) -> Result<(), String> 
 }
 ```
 
-That design is a good choice when the file system is part of the business boundary, or when the application needs several interchangeable implementations. It also works on every Rust target without runtime code patching.
+The test is clear:
 
-For a small helper, though, the trait can be more code than the feature. The trait, real implementation, generic parameter, and extra argument spread through callers. The production code now carries a test seam forever, even if it only ever uses one implementation.
+```rust
+#[test]
+fn cache_setup_succeeds() {
+    let root = Path::new("virtual/cache/reports");
+    let mut fs = MockCacheFileSystem::new();
+    fs.expect_create_dir_all()
+        .withf(move |path| *path == root)
+        .times(1)
+        .returning(|_| Ok(()));
 
-## Mock the standard library call with shimforge
+    assert!(prepare_cache(&fs, root).is_ok());
+}
+```
 
-Shimforge can intercept the function that the existing code calls:
+But the production function is no longer the original function. Every caller now needs a file system value or a generic parameter. The real implementation also needs a trait implementation:
+
+```rust
+struct RealCacheFileSystem;
+
+impl CacheFileSystem for RealCacheFileSystem {
+    fn create_dir_all(&self, root: &Path) -> io::Result<()> {
+        std::fs::create_dir_all(root)
+    }
+}
+```
+
+That is a reasonable design when choosing a file system is part of the application. For a helper that only needs to call the standard library, it adds a permanent layer for a test concern.
+
+## The shimforge version
+
+Shimforge lets the production function stay as it was. It replaces the function called by the code under test for the session:
 
 ```rust
 use shimforge::{mock, Session};
@@ -79,7 +89,7 @@ use std::io;
 use std::path::Path;
 
 #[test]
-fn cache_setup_does_not_touch_disk() {
+fn cache_setup_succeeds_without_creating_a_directory() {
     let root = Path::new("virtual/cache/reports");
     let mut session = Session::new();
     let create = mock!(
@@ -100,15 +110,9 @@ fn cache_setup_does_not_touch_disk() {
 }
 ```
 
-The test makes three claims:
+The production function still has the small signature from the first example. There is no trait, real implementation, generic parameter, or extra argument to carry through the application.
 
-1. `prepare_cache` calls `create_dir_all`.
-2. It passes the expected path.
-3. No directory is created on the real disk.
-
-There is no wrapper around `std::fs`, and `prepare_cache` is unchanged.
-
-The failure path is just as direct:
+The error path is just as direct:
 
 ```rust
 #[test]
@@ -130,11 +134,25 @@ fn cache_setup_reports_permission_errors() {
 }
 ```
 
-The application sees the same `io::Error` it would get from the operating system. The test does not need a read-only directory or special permissions on the host.
+The test controls the exact `io::Error` returned to the caller. It does not need a read-only directory, special permissions, or a platform specific setup.
 
-## Use `replace!` when you only need a fake function
+## Where shimforge has the edge
 
-`mock!` is useful when the test needs argument matching or call counts. When the replacement itself is the important part, `replace!` is shorter:
+For direct file system calls, shimforge has a few practical advantages over the Mockall version.
+
+### No production refactor
+
+Mockall needs a trait for this example. Shimforge works with the function that already exists. That matters when the code is stable, small, or shared by many callers. You can add a test without changing the function signature and then review only the behavior under test.
+
+### No dependency injection through the call graph
+
+With Mockall, the file system object has to reach `prepare_cache`, either as an argument or through a field on another type. As the call graph grows, that value moves through more constructors and methods. Shimforge keeps the test setup at the test boundary.
+
+### It can mock code you do not own
+
+The trait approach works when you can put your own interface in front of a dependency. Shimforge can target a free function from the standard library or another crate directly. That is useful for `std::fs::read`, `std::fs::write`, `File::open`, `Path::exists`, and `Path::is_dir`.
+
+For example, a reader can be tested without a file:
 
 ```rust
 use shimforge::{replace, Session};
@@ -155,7 +173,7 @@ fn fake_members(_: &Path) -> io::Result<Vec<u8>> {
 }
 
 #[test]
-fn reading_members_uses_test_data() {
+fn reads_test_data_without_opening_a_file() {
     let mut session = Session::new_global();
     replace!(
         session,
@@ -163,51 +181,35 @@ fn reading_members_uses_test_data() {
         fn(&Path) -> io::Result<Vec<u8>>
     );
 
-    assert_eq!(load_members(Path::new("virtual/members.txt")).unwrap(), ["alice", "bob"]);
+    assert_eq!(
+        load_members(Path::new("virtual/members.txt")).unwrap(),
+        ["alice", "bob"]
+    );
 }
 ```
 
-The signature in the macro is checked at compile time. A replacement with the wrong arguments or return type does not silently install.
+The test targets the same `fs::read` call that production code uses. No adapter is needed just to make the dependency mockable.
 
-You can also capture what the application writes:
+### The function signature is checked
 
-```rust
-fn capture_write(path: &Path, data: &[u8]) -> io::Result<()> {
-    assert_eq!(path, Path::new("virtual/members.txt"));
-    assert_eq!(data, b"alice\nbob\n");
-    Ok(())
-}
+The signature in `mock!` and `replace!` is checked by the compiler. The mock for `create_dir_all` must accept a `&Path` and return `io::Result<()>`. A replacement with a different signature will fail to compile before the test runs.
 
-replace!(
-    session,
-    fs::write::<&Path, &[u8]> => capture_write,
-    fn(&Path, &[u8]) -> io::Result<()>
-);
+That keeps the direct approach readable: the test names the function, states its signature, and supplies the behavior. There is no separately maintained trait that can drift away from the call being replaced.
+
+## Which one should you use?
+
+Mockall remains a strong fit when an interface is already part of the design or when several implementations are a real product feature. For code that directly calls `std::fs`, shimforge has the smaller change: keep the production code intact and replace the narrow call inside the test.
+
+That is the main reason to prefer shimforge for file system seams. It lets the test check paths, calls, bytes, and OS errors without adding a test-only abstraction to the application.
+
+Add shimforge as a development dependency:
+
+```toml
+[dev-dependencies]
+shimforge = "0.1"
 ```
 
-This checks the generated path and bytes without opening a file.
-
-## Why shimforge is often the better fit
-
-For code that directly uses `std::fs`, shimforge keeps the test close to the code that matters. That has practical benefits:
-
-- Production functions keep their simple signatures.
-- Tests cover OS errors without changing permissions or relying on a particular file system.
-- The mock can check paths, bytes, call counts, and returned errors.
-- The test can intercept a function in code you do not own, including a dependency's free function.
-- The test can be added after the production code exists. You do not need to design a trait before you know what needs testing.
-
-This is why shimforge is recommended for narrow seams such as file reads, writes, directory creation, clocks, and environment lookups. It removes test-only plumbing from the application while keeping the test specific.
-
-A trait remains a better choice when multiple file system implementations are a real product feature, when the boundary must be visible in the type system, or when the code must run under tools that cannot execute runtime patches. Shimforge is a testing tool, not a reason to hide an important domain boundary.
-
-## Local sessions and parallel tests
-
-`Session::new()` creates a thread-local session. The mock affects the current test thread, so unrelated tests can use their own sessions. A global session created with `Session::new_global()` affects all threads and takes an exclusive lock. Use it when the code starts work on threads that the test does not control.
-
-Keep the session alive for every call that should be mocked. Dropping it restores the original function and checks the expectations. `session.verify()` lets the test check them earlier.
-
-Before adding shimforge, put these settings in the workspace root `Cargo.toml`:
+The test profile also needs low optimization so calls keep a patchable entry point:
 
 ```toml
 [profile.test]
@@ -218,17 +220,5 @@ codegen-units = 1
 incremental = false
 ```
 
-Then add the crate as a development dependency:
+Keep the session alive while the code under test runs. `Session::new()` is thread local. Use `Session::new_global()` when the call happens on a thread the test does not control.
 
-```toml
-[dev-dependencies]
-shimforge = "0.1"
-```
-
-Install the first mock before other threads call that function. Later local installs and cleanup do not rewrite the code, but the first patch still needs that target to be idle while it is installed.
-
-## The trade-off
-
-Shimforge changes function entry points at runtime, so it has rules that a trait mock does not. Keep calls away from a target during the first installation, use a global session for work that crosses threads, and keep the test profile settings above. Its safe macros check function signatures, but runtime patching still cannot protect every invariant inside arbitrary code.
-
-For a small piece of file system code, those rules are usually a fair trade. You get a focused test, deterministic errors, and production code that does not need a test-only abstraction.

@@ -1,4 +1,4 @@
-title: Shimforge Blog
+title: shimforge blog
 description: Practical notes on testing Rust code with shimforge.
 url: https://xtsoftwarelabs.github.io
 baseurl: /shimforgeblog
@@ -9,4 +9,3 @@ exclude:
   - Gemfile
   - Gemfile.lock
   - vendor
-
