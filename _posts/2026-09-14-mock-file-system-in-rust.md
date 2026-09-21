@@ -208,17 +208,6 @@ Add shimforge as a development dependency:
 shimforge = "0.1"
 ```
 
-The test profile also needs low optimization so calls keep a patchable entry point:
-
-```toml
-[profile.test]
-opt-level = 0
-debug = true
-lto = false
-codegen-units = 1
-incremental = false
-```
-
 ## Learn more
 
 - [shimforge home page](https://shimforge.com)
